@@ -60,7 +60,8 @@ class NetflixChaosRunner:
         chaos_types = {
             "long_query": "SELECT pg_sleep(2);",
             "timeout": "SET statement_timeout = '100ms';",
-            "kill_connection": "SELECT pg_terminate_backend(pg_backend_pid());",
+            # Temporarily disable kill_connection to avoid connection issues during retries
+            # "kill_connection": "SELECT pg_terminate_backend(pg_backend_pid());",
             "temp_table_stress": """
                 CREATE TEMP TABLE stress_test AS 
                 SELECT generate_series(1,50000) AS id;
@@ -80,6 +81,23 @@ class NetflixChaosRunner:
 
         return chaos_type
 
+    @staticmethod
+    def handle_database_error(error: psycopg2.Error) -> str:
+        """Convert database errors to user-friendly messages"""
+        error_types = {
+            psycopg2.OperationalError: "⚠️ DATABASE OPERATIONAL ERROR: Connection issues or timeout",
+            psycopg2.IntegrityError: "❌ DATA INTEGRITY ERROR: Constraint violation",
+            psycopg2.ProgrammingError: "🔍 SQL SYNTAX ERROR: Check your query",
+            psycopg2.InternalError: "💥 DATABASE INTERNAL ERROR: Transaction issues",
+            psycopg2.DataError: "📊 DATA ERROR: Invalid data format",
+            psycopg2.InterfaceError: "🔌 INTERFACE ERROR: Database connection lost"
+        }
+
+        for error_class, message in error_types.items():
+            if isinstance(error, error_class):
+                return f"{message}\nDetails: {str(error)}"
+        return f"🚨 UNEXPECTED ERROR: {str(error)}"
+
     def execute_query_with_retry(self, conn, sql_query: str, max_retries: int = 3):
         metrics = QueryMetrics(
             prompt="",
@@ -94,34 +112,82 @@ class NetflixChaosRunner:
         )
 
         start_time = time.time()
+        last_error = None
 
         for attempt in range(max_retries):
             try:
                 db_chaos = self.simulate_db_specific_chaos(conn)
                 if db_chaos:
                     metrics.chaos_type = db_chaos
+                    print(f"🌪️ CHAOS EVENT: {db_chaos}")
 
                 with conn.cursor() as cursor:
                     cursor.execute(sql_query)
-                    results = cursor.fetchall()
+                    # Check if the query returns results before fetching
+                    if cursor.description is not None:
+                        results = cursor.fetchall()
+                        metrics.rows_returned = len(results)
+                    else:
+                        results = []
+                        metrics.rows_returned = 0
                     conn.commit()
 
                     metrics.success = True
-                    metrics.rows_returned = len(results)
                     metrics.retry_count = attempt
                     return metrics, results
 
             except psycopg2.Error as e:
                 conn.rollback()
+                last_error = e
+                error_message = self.handle_database_error(e)
                 metrics.error_type = str(e)
                 metrics.retry_count = attempt + 1
-                print(f"🔄 Retry {attempt + 1}/{max_retries}: {e}")
-                time.sleep(random.uniform(0.1, 0.5) * (attempt + 1))
+
+                print(f"\n{'=' * 50}")
+                print(error_message)
+                print(f"🔄 Attempt {attempt + 1}/{max_retries}")
+                print(f"⏱️ Time elapsed: {time.time() - start_time:.2f}s")
+                print(f"{'=' * 50}\n")
+
+                if attempt < max_retries - 1:
+                    backoff_time = random.uniform(0.1, 0.5) * (attempt + 1)
+                    print(f"⏳ Waiting {backoff_time:.2f}s before retry...")
+                    time.sleep(backoff_time)
 
             finally:
                 metrics.execution_time = time.time() - start_time
 
+        # All retries failed - provide detailed failure report
+        print(f"\n{'!' * 50}")
+        print("🚨 FINAL FAILURE REPORT 🚨")
+        print(f"{'!' * 50}")
+        print(f"✖️ Query failed after {max_retries} attempts")
+        print(f"⏱️ Total time spent: {metrics.execution_time:.2f}s")
+        print(f"🔍 Last error: {self.handle_database_error(last_error)}")
+        print("📝 Query that failed:")
+        print(f"{sql_query}")
+        print(f"{'!' * 50}\n")
+
+        # Log to file
+        self.log_failure(sql_query, metrics, last_error)
+
         return metrics, None
+
+    def log_failure(self, query: str, metrics: QueryMetrics, error: Exception):
+        """Log failed queries to a file for analysis"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_entry = (
+            f"\n=== Failed Query Log Entry: {timestamp} ===\n"
+            f"Query:\n{query}\n"
+            f"Error: {str(error)}\n"
+            f"Execution Time: {metrics.execution_time:.2f}s\n"
+            f"Retry Count: {metrics.retry_count}\n"
+            f"Chaos Type: {metrics.chaos_type}\n"
+            f"{'=' * 50}\n"
+        )
+
+        with open("failed_queries.log", "a") as f:
+            f.write(log_entry)
 
     def analyze_metrics(self):
         """Analyze the collected metrics"""

@@ -1,0 +1,145 @@
+
+=== Failed Query Log Entry: 2025-01-30 18:47:11 ===
+Query:
+SELECT u.name
+FROM users u
+JOIN viewing_history vh ON u.user_id = vh.user_id
+WHERE vh.watch_time >= DATE('now', '-1 month')
+GROUP BY u.user_id
+HAVING COUNT(DISTINCT vh.movie_id) > 10;
+Error: function date(unknown, unknown) does not exist
+LINE 4: WHERE vh.watch_time >= DATE('now', '-1 month')
+                               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+
+Execution Time: 1.31s
+Retry Count: 3
+Chaos Type: None
+==================================================
+
+=== Failed Query Log Entry: 2025-01-30 18:47:15 ===
+Query:
+SELECT u.user_id, u.name, u.email
+FROM users u
+LEFT JOIN viewing_history vh ON u.user_id = vh.user_id
+WHERE NOT EXISTS (SELECT 1 FROM viewing_history WHERE user_id = u.user_id AND duration_watched = watch_time);
+Error: operator does not exist: integer = timestamp without time zone
+LINE 4: ...ry WHERE user_id = u.user_id AND duration_watched = watch_ti...
+                                                             ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+
+Execution Time: 2.84s
+Retry Count: 3
+Chaos Type: long_query
+==================================================
+
+=== Failed Query Log Entry: 2025-01-30 18:47:17 ===
+Query:
+SELECT user_id FROM users WHERE user_id NOT IN (SELECT user_id FROM viewing_history WHERE watch_time >= date('now', '-60 days'));
+Error: current transaction is aborted, commands ignored until end of transaction block
+
+Execution Time: 1.27s
+Retry Count: 3
+Chaos Type: long_query
+==================================================
+
+=== Failed Query Log Entry: 2025-01-30 18:47:20 ===
+Query:
+SELECT AVG(vh.watch_time), m.genre FROM viewing_history vh JOIN movies m ON vh.movie_id = m.movie_id GROUP BY m.genre;
+Error: function avg(timestamp without time zone) does not exist
+LINE 1: SELECT AVG(vh.watch_time), m.genre FROM viewing_history vh J...
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+
+Execution Time: 1.24s
+Retry Count: 3
+Chaos Type: temp_table_stress
+==================================================
+
+=== Failed Query Log Entry: 2025-01-30 18:51:22 ===
+Query:
+SELECT u.user_id, u.name, u.email FROM users u LEFT JOIN viewing_history vh ON u.user_id = vh.user_id WHERE vh.duration_watched IS NULL OR vh.duration_watched < (SELECT duration FROM movies WHERE movies.movie_id = vh.movie_id) GROUP BY u.user_id HAVING count(*) = sum(CASE WHEN vh.duration_watched < (SELECT duration FROM movies WHERE movies.movie_id = vh.movie_id) THEN 1 ELSE 0 END);
+Error: column "duration" does not exist
+LINE 1: ..._watched IS NULL OR vh.duration_watched < (SELECT duration F...
+                                                             ^
+
+Execution Time: 0.68s
+Retry Count: 3
+Chaos Type: None
+==================================================
+
+=== Failed Query Log Entry: 2025-01-30 18:51:26 ===
+Query:
+SELECT AVG(vh.watch_time), m.genre FROM viewing_history vh JOIN movies m ON vh.movie_id = m.movie_id GROUP BY m.genre;
+Error: function avg(timestamp without time zone) does not exist
+LINE 1: SELECT AVG(vh.watch_time), m.genre FROM viewing_history vh J...
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+
+Execution Time: 0.96s
+Retry Count: 3
+Chaos Type: timeout
+==================================================
+
+=== Failed Query Log Entry: 2025-01-31 06:15:53 ===
+Query:
+SELECT u.user_id, u.name, u.email FROM users u LEFT JOIN viewing_history vh ON u.user_id = vh.user_id WHERE vh.duration_watched IS NULL OR vh.duration_watched < (SELECT duration FROM movies WHERE movies.movie_id = vh.movie_id) GROUP BY u.user_id HAVING count(*) = 0;
+Error: column "duration" does not exist
+LINE 1: ..._watched IS NULL OR vh.duration_watched < (SELECT duration F...
+                                                             ^
+
+Execution Time: 2.85s
+Retry Count: 3
+Chaos Type: long_query
+==================================================
+
+=== Failed Query Log Entry: 2025-01-31 06:15:56 ===
+Query:
+SELECT AVG(vh.watch_time), m.genre FROM viewing_history vh JOIN movies m ON vh.movie_id = m.movie_id GROUP BY m.genre;
+Error: function avg(timestamp without time zone) does not exist
+LINE 1: SELECT AVG(vh.watch_time), m.genre FROM viewing_history vh J...
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+
+Execution Time: 1.24s
+Retry Count: 3
+Chaos Type: None
+==================================================
+
+=== Failed Query Log Entry: 2025-02-24 22:38:58 ===
+Query:
+SELECT u.name, u.email FROM users u LEFT JOIN viewing_history vh ON u.user_id = vh.user_id WHERE vh.duration_watched < (SELECT MAX(duration) FROM movies) GROUP BY u.user_id HAVING COUNT(CASE WHEN vh.duration_watched = (SELECT MAX(duration) FROM movies) THEN 1 END) = 0;
+Error: column "duration" does not exist
+LINE 1: ...h.user_id WHERE vh.duration_watched < (SELECT MAX(duration) ...
+                                                             ^
+
+Execution Time: 0.93s
+Retry Count: 3
+Chaos Type: temp_table_stress
+==================================================
+
+=== Failed Query Log Entry: 2025-02-24 22:39:00 ===
+Query:
+SELECT user_id FROM users WHERE user_id NOT IN (SELECT user_id FROM viewing_history WHERE watch_time >= DATE('now', '-60 days'));
+Error: function date(unknown, unknown) does not exist
+LINE 1: ... user_id FROM viewing_history WHERE watch_time >= DATE('now'...
+                                                             ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+
+Execution Time: 1.11s
+Retry Count: 3
+Chaos Type: temp_table_stress
+==================================================
+
+=== Failed Query Log Entry: 2025-02-24 22:39:02 ===
+Query:
+SELECT AVG(vh.watch_time), m.genre FROM viewing_history vh JOIN movies m ON vh.movie_id = m.movie_id GROUP BY m.genre;
+Error: function avg(timestamp without time zone) does not exist
+LINE 1: SELECT AVG(vh.watch_time), m.genre FROM viewing_history vh J...
+               ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+
+Execution Time: 1.26s
+Retry Count: 3
+Chaos Type: timeout
+==================================================

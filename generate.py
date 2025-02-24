@@ -2,6 +2,10 @@ import random
 from datetime import datetime, timedelta
 import faker
 import psycopg2
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def generate_test_data(cursor):
@@ -16,7 +20,7 @@ def generate_test_data(cursor):
     COUNTRIES = ['USA', 'Canada', 'UK', 'France', 'Germany', 'Japan', 'Australia', 'Brazil']
 
     # Generate Users
-    print("Generating users...")
+    logger.info("Generating users...")
     user_data = []
     for _ in range(TOTAL_USERS):
         signup_date = fake.date_between(start_date='-3y', end_date='today')
@@ -34,7 +38,7 @@ def generate_test_data(cursor):
         user_data.append((user_id, signup_date))
 
     # Generate Subscriptions
-    print("Generating subscriptions...")
+    logger.info("Generating subscriptions...")
     for user_id, signup_date in user_data:
         status = random.choices(['active', 'cancelled', 'paused'], weights=[0.8, 0.15, 0.05])[0]
         renewal_date = datetime.now().date() + timedelta(days=random.randint(1, 365))
@@ -47,7 +51,7 @@ def generate_test_data(cursor):
         """, (user_id, random.choice(PLAN_TYPES), status, renewal_date))
 
     # Generate Movies
-    print("Generating movies...")
+    logger.info("Generating movies...")
     movie_data = []
     for _ in range(TOTAL_MOVIES):
         movie = (
@@ -63,7 +67,7 @@ def generate_test_data(cursor):
         movie_data.append(cursor.fetchone()[0])
 
     # Generate Viewing History
-    print("Generating viewing history...")
+    logger.info("Generating viewing history...")
     for user_id, signup_date in user_data:
         num_movies = random.randint(*MOVIES_PER_USER_RANGE)
         watched_movies = random.sample(movie_data, num_movies)
@@ -87,7 +91,7 @@ def verify_data(cursor):
     for table in tables:
         cursor.execute(f"SELECT COUNT(*) FROM {table}")
         count = cursor.fetchone()[0]
-        print(f"{table}: {count} records")
+        logger.info(f"{table}: {count} records")
 
 
 def setup_database(conn):
@@ -140,5 +144,22 @@ def populate_database(conn):
     with conn.cursor() as cursor:
         generate_test_data(cursor)
         conn.commit()
-        print("\nVerifying data counts:")
+        logger.info("\nVerifying data counts:")
         verify_data(cursor)
+
+
+if __name__ == "__main__":
+    # This allows the script to be run independently for data generation only
+    from testcontainers.postgres import PostgresContainer
+
+    with PostgresContainer("postgres:15") as postgres:
+        conn = psycopg2.connect(
+            host=postgres.get_container_host_ip(),
+            port=postgres.get_exposed_port(5432),
+            dbname="test",
+            user="test",
+            password="test"
+        )
+        setup_database(conn)
+        populate_database(conn)
+        conn.close()
