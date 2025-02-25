@@ -143,3 +143,64 @@ Execution Time: 1.26s
 Retry Count: 3
 Chaos Type: timeout
 ==================================================
+
+=== Failed Query Log Entry: 2025-02-25 12:20:35 ===
+Query:
+SELECT u.name FROM users u JOIN viewing_history vh ON u.user_id = vh.user_id WHERE EXTRACT(MONTH FROM vh.watch_time) = EXTRACT(MONTH FROM NOW()) - INTERVAL '1 month' GROUP BY u.user_id HAVING COUNT(DISTINCT vh.movie_id) > 10;
+Error: operator does not exist: numeric - interval
+LINE 1: ...H FROM vh.watch_time) = EXTRACT(MONTH FROM NOW()) - INTERVAL...
+                                                             ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+
+Execution Time: 0.64s
+Retry Count: 3
+Chaos Type: timeout
+==================================================
+
+=== Failed Query Log Entry: 2025-02-25 12:20:37 ===
+Query:
+SELECT u.user_id, u.name, u.email FROM users u LEFT JOIN viewing_history vh ON u.user_id = vh.user_id WHERE vh.duration_watched < (SELECT duration FROM movies WHERE movies.movie_id = vh.movie_id) GROUP BY u.user_id HAVING count(*) > 0;
+Error: column "duration" does not exist
+LINE 1: ... = vh.user_id WHERE vh.duration_watched < (SELECT duration F...
+                                                             ^
+
+Execution Time: 0.71s
+Retry Count: 3
+Chaos Type: temp_table_stress
+==================================================
+
+=== Failed Query Log Entry: 2025-02-25 12:20:38 ===
+Query:
+SELECT user_id FROM users EXCEPT SELECT DISTINCT user_id FROM viewing_history WHERE watch_time >= DATE('now', '-60 days');
+Error: current transaction is aborted, commands ignored until end of transaction block
+
+Execution Time: 0.72s
+Retry Count: 3
+Chaos Type: long_query
+==================================================
+
+=== Failed Query Log Entry: 2025-02-25 12:20:40 ===
+Query:
+SELECT g.genre, AVG(vh.watch_time) AS average_watch_time FROM movies g JOIN viewing_history vh ON g.movie_id = vh.movie_id GROUP BY g.genre;
+Error: function avg(timestamp without time zone) does not exist
+LINE 1: SELECT g.genre, AVG(vh.watch_time) AS average_watch_time FRO...
+                        ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+
+Execution Time: 1.14s
+Retry Count: 3
+Chaos Type: temp_table_stress
+==================================================
+
+=== Failed Query Log Entry: 2025-02-25 13:37:22 ===
+Query:
+SELECT m.genre, AVG(vh.watch_time) AS average_watch_time FROM movies m JOIN viewing_history vh ON m.movie_id = vh.movie_id GROUP BY m.genre;
+Error: function avg(timestamp without time zone) does not exist
+LINE 1: SELECT m.genre, AVG(vh.watch_time) AS average_watch_time FRO...
+                        ^
+HINT:  No function matches the given name and argument types. You might need to add explicit type casts.
+
+Execution Time: 2.95s
+Retry Count: 3
+Chaos Type: long_query
+==================================================

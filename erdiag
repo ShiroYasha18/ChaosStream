@@ -1,0 +1,28 @@
+Users
+
+user_id (PK)
+name
+email
+signup_date
+country
+Subscriptions
+
+subscription_id (PK)
+user_id (FK → Users.user_id)
+plan_type
+status
+renewal_date
+Movies
+
+movie_id (PK)
+title
+genre
+release_year
+rating
+Viewing History
+
+history_id (PK)
+user_id (FK → Users.user_id)
+movie_id (FK → Movies.movie_id)
+watch_time
+duration_watched
